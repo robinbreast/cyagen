@@ -5,6 +5,9 @@ edition = "2021"
 license = "MIT"
 description = "Text file generator based on C file and templates"
 readme = "README.md"
+keywords = ["c", "generator"]
+categories = ["command-line-utility"]
+repository = "https://github.com/robinbreast/cyagen"
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
