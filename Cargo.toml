@@ -6,7 +6,7 @@ license = "MIT"
 description = "Text file generator based on C file and templates"
 readme = "README.md"
 keywords = ["c", "generator"]
-categories = ["command-line-utility"]
+categories = ["command-line-utilities"]
 repository = "https://github.com/robinbreast/cyagen"
 
 
