@@ -92,7 +92,7 @@ int func2(char c);
 ## Default application command line usage
 ```
 $ cyagen --help
-cyagen 0.1.7
+cyagen 0.1.8
 Text file generator based on C file and templates
 
 USAGE:
