@@ -92,17 +92,18 @@ int func2(char c);
 ## Default application command line usage
 ```
 $ cyagen --help
-cyagen 0.1.5
+cyagen 0.1.7
 Text file generator based on C file and templates
 
 USAGE:
-    cyagen --source <SOURCE> --temp-dir <TEMP_DIR> --output-dir <OUTPUT_DIR>
+    cyagen [OPTIONS] --source <SOURCE>
 
 OPTIONS:
-    -h, --help                       Print help information
-    -o, --output-dir <OUTPUT_DIR>    output directory
-    -s, --source <SOURCE>            source file path
-    -t, --temp-dir <TEMP_DIR>        template directory
-    -V, --version                    Print version information
+    -s, --source <SOURCE>               source file path
+    -t, --temp-dir <TEMP_DIR>           template directory
+    -o, --output-dir <OUTPUT_DIR>       output directory
+    -j, --json-filepath <JSON_FILEPATH> output json file path
+    -h, --help                          Print help information
+    -V, --version                       Print version information
 $
 ```
