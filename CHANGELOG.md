@@ -1,4 +1,9 @@
 # Change Log
+
+## [0.1.7]
+ 
+### New 
+new option --json-filepath to generate json file; to use another better template engine like jinja2
  
 ## [0.1.5]
  

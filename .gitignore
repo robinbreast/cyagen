@@ -37,3 +37,6 @@ build
 
 # rust
 target
+
+# generated samples
+sample.json

@@ -4,18 +4,24 @@
 //! - Supported elements are inclusion, local variable, and functions
 //!
 
+extern crate anyhow;
 extern crate chrono;
 extern crate regex;
+extern crate serde;
 
+use anyhow::{Context, Result};
 use chrono::Utc;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
+use serde_json;
+use std::fs;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Include {
     pub captured: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StaticVariable {
     pub captured: String,
     pub name_expr: String, // like "array[10]"
@@ -25,7 +31,7 @@ pub struct StaticVariable {
     pub func_name: String, // function name where local variable is declared
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Function {
     pub captured: String,
     pub name: String,
@@ -35,13 +41,13 @@ pub struct Function {
     pub atypes: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct NestedCall {
     pub callee: Function,
     pub caller: Function,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Parser {
     incs: Vec<Include>,
     static_vars: Vec<StaticVariable>,
@@ -63,6 +69,12 @@ impl Parser {
             ncls: ncls,
         }
     }
+}
+pub fn generate_json<'a>(parser: &'a Parser, filepath: &'a String) -> Result<()> {
+    let file = fs::File::create(filepath)
+        .with_context(|| format!("failed to create file `{}`", filepath))?;
+    serde_json::to_writer(file, parser)?;
+    Ok(())
 }
 
 /// generate document based on parsing result and template data
@@ -168,7 +180,8 @@ pub fn generate<'a>(parser: &'a Parser, template: &'a str, sourcename: &'a str) 
         }
     }
     if template.contains("@static-global-vars@") {
-        let re = Regex::new(r"@static-global-vars@(?P<fmt>[\S\s]*)@end-static-global-vars@").unwrap();
+        let re =
+            Regex::new(r"@static-global-vars@(?P<fmt>[\S\s]*)@end-static-global-vars@").unwrap();
         for cap in re.captures_iter(template) {
             let mut tmpstr = String::new();
             for entry in &parser.static_vars {
