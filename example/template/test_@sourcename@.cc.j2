@@ -1,0 +1,17 @@
+/// this is generated google test script based on {{ sourcename }}.c
+
+#include <gtest/gtest.h>
+extern "C" {
+  #include "{{ sourcename }}.c"
+}
+
+{% for fnc in fncs -%}
+/// define a test case for the {{ fnc.name }} function
+TEST(Test_{{ sourcename }}Test, {{ fnc.name }}) {
+  /// TODO: complete test case
+}
+{% endfor %}
+int main(int argc, char **argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}

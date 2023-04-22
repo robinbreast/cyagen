@@ -8,6 +8,18 @@ File generator to reduce the manual effort to prepare another scripting files wh
 - Generate text based files using template files
 - Supported elements are inclusion, local variable, and functions
 
+## Better use jinja2 format in template files
+- Since 0.1.19, cyagen supports jinja2 format of template files using [tera](https://crates.io/crates/tera)
+- if a template file extension is .j2 or .tera, cyagen generates target files using **tera** engine
+- example: **to create googletest script skeleton and CMakeLists.txt based on C code**
+```
+$ cyagen --source ./example/source/sample.c --temp-dir ./example/template --output-dir ./.output
+$ cd .output
+$ cmake -S . -B build
+$ cmake --build build
+$ cd build && ctest
+```
+
 ## Available tags in a template file
 - **@sourcename@** : it is given as an argument from command line
 - **@date@** : generated date

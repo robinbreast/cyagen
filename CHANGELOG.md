@@ -1,5 +1,9 @@
 # Change Log
 
+## [0.1.9]
+### New 
+supports jinja2 template files (*.j2 or *.tera) using tera engine
+
 ## [0.1.8]
  
 ### New 

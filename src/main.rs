@@ -3,6 +3,8 @@ use clap::Parser;
 use cyagen;
 use std::fs;
 use std::path::{self, Path};
+use tera;
+use serde_json;
 
 /// text file generator based on C file and templates
 #[derive(Parser)]
@@ -59,9 +61,33 @@ fn main() -> Result<()> {
                 let temp_filename = temp_path.split(path::MAIN_SEPARATOR).last().unwrap();
                 let temp = fs::read_to_string(&temp_path)
                     .with_context(|| format!("failed to read file `{}`", &temp_path))?;
-                let gen = cyagen::generate(&parser, &temp, &sourcename);
+                let temp_ext = Path::new(temp_filename)
+                    .extension()
+                    .unwrap_or_default()
+                    .to_str()
+                    .unwrap_or("");
+                let gen;
                 let mut output_fname =
                     format!("{}{}{}", &output_dir, path::MAIN_SEPARATOR, temp_filename);
+                if temp_ext == "tera" || temp_ext == "j2" {
+                    output_fname = output_fname.replace(".tera", "").replace(".j2", "");
+                    let mut tera = tera::Tera::default();
+                    tera.add_raw_template("temp", &temp).unwrap();
+                    let mut context = tera::Context::new();
+                    let json_data = serde_json::to_string(&parser).unwrap();
+                    let data: tera::Value = serde_json::from_str(&json_data).unwrap();
+                    for (key, value) in data.as_object().unwrap() {
+                        context.insert(key, value);
+                    }
+                    context.insert("sourcename", &sourcename);
+                    let result = tera.render("temp", &context);
+                    match result {
+                        Ok(value) => gen = value,
+                        Err(error) => panic!("Error: {}", error),
+                    };
+                } else {
+                    gen = cyagen::generate(&parser, &temp, &sourcename);
+                }
                 if output_fname.contains("@sourcename@") {
                     output_fname = output_fname.replace("@sourcename@", &sourcename);
                 }
