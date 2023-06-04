@@ -24,36 +24,57 @@ extern void controlPin(uint8_t pin, uint8_t high);
 
 void controlMotor(void)
 {
+    static uint8_t pinLeft = 0U;
+    static uint8_t pinRight = 0U;
+    LOCAL_STATIC_VARIABLE(pinLeft);
+    LOCAL_STATIC_VARIABLE(pinRight);
     if (0U == pinUpdated)
     {
+        uint8_t left = 0, right = 0;
         switch (currDir)
         {
         case Idle:
-            controlPin(MOTOR_LEFT_PIN, 0);
-            controlPin(MOTOR_RIGHT_PIN, 0);
+            left = 0U;
+            right = 0U;
             break;
         case Forward:
-            controlPin(MOTOR_LEFT_PIN, 1);
-            controlPin(MOTOR_RIGHT_PIN, 1);
+            left = 1U;
+            right = 1U;
             break;
         case TurnLeft:
-            controlPin(MOTOR_LEFT_PIN, 1);
-            controlPin(MOTOR_RIGHT_PIN, 0);
+            left = 1U;
+            right = 0U;
             break;
         case TurnRight:
-            controlPin(MOTOR_LEFT_PIN, 0);
-            controlPin(MOTOR_RIGHT_PIN, 1);
+            left = 0U;
+            right = 1U;
             break;
         default:
             break;
         }
-        pinUpdated = 1U;
+        if (pinLeft != left)
+        {
+            pinLeft = left;
+            controlPin(MOTOR_LEFT_PIN, pinLeft);
+            pinUpdated = 1U;
+        }
+        if (pinRight != right)
+        {
+            pinRight = right;
+            controlPin(MOTOR_RIGHT_PIN, pinRight);
+            pinUpdated = 1U;
+        }
     }
+}
+
+void setDir(const Direction_t dir)
+{
+    currDir = dir;
 }
 
 void move(const Direction_t dir, const uint32_t duration)
 {
-    currDir = dir;
+    setDir(dir);
     timeLeft = duration;
     lastTimestamp = getCurrentTime();
     pinUpdated = 0U;
@@ -68,7 +89,7 @@ void checkTimeout(void)
     else
     {
         timeLeft = 0;
-        currDir = Idle;
+        setDir(Idle);
         pinUpdated = 0U;
         controlMotor();
     }

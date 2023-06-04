@@ -16,11 +16,18 @@ std::map<std::pair<std::string, std::string>, void*> _local_static_variables;
 
 extern "C"
 {
-  #include <stdio.h>
-  #include <stdint.h>
-  // MANUAL SECTION: 5bb47141-e026-5086-bd7f-cd52a657b4c6
+  // MANUAL SECTION: 4c4e914f-8bc0-58f9-9c3b-17ee4e33cfd0
   // MANUAL SECTION END
+
+  // include SUT
+  #include "sample.c"
 }
+
+/// usage of EXPECT_CALL() for stub functions
+// EXPECT_CALL(Stub::getInstance(), stub_func1()).WillOnce(::testing::Return(1));
+
+// MANUAL SECTION: 35d1701a-c77d-57d9-bed5-d756ffe01cc0
+// MANUAL SECTION END
 
 /// Stub class for stub functions
 class Stub
@@ -35,30 +42,22 @@ public:
     static Stub st;
     return st;
   }
-  // move calls controlMotor
+  /// nested functions for call sequence checks
   MOCK_METHOD(void, controlMotor, ());
-  // checkTimeout calls controlMotor
-  MOCK_METHOD(void, controlMotor, ());
-  
+  MOCK_METHOD(void, setDir, (const Direction_t));
 
   /// stub functions
   // MANUAL SECTION: d93bc5d9-008c-5b86-9858-dba6854f4266
   MOCK_METHOD(uint32_t, getCurrentTime, ());
   MOCK_METHOD(void, controlPin, (uint8_t, uint8_t));
-  MOCK_METHOD(void, controlMotor, ());
   // MANUAL SECTION END
+
 private:
   Stub(){}
 };
 
 extern "C"
 {
-  // MANUAL SECTION: 4c4e914f-8bc0-58f9-9c3b-17ee4e33cfd0
-// MANUAL SECTION END
-
-  // include SUT
-  #include "sample.c"
-
   /// stub functions; use Stub::getInstance().stub_func()
   // MANUAL SECTION: 7c512ffc-1a83-57e3-8c38-ddde70ff83be
   uint32_t getCurrentTime()
@@ -72,27 +71,28 @@ extern "C"
   // MANUAL SECTION END
 }
 
-/// usage of EXPECT_CALL() for stub functions
-// EXPECT_CALL(Stub::getInstance(), stub_func1()).WillOnce(::testing::Return(1));
-
-// MANUAL SECTION: 35d1701a-c77d-57d9-bed5-d756ffe01cc0
-// MANUAL SECTION END
-
-/// define a test case for the controlMotor function
+/// define a test case for the controlMotor() function
 TEST(sample, controlMotor) {
   // MANUAL SECTION: cf139424-4850-5640-aab9-dc3ae9584c7d
-  EXPECT_CALL(Stub::getInstance(), controlPin(MOTOR_LEFT_PIN, 0));
-  EXPECT_CALL(Stub::getInstance(), controlPin(MOTOR_RIGHT_PIN, 0));
-  currDir = Idle;
+  ::testing::Sequence seq;
+  EXPECT_CALL(Stub::getInstance(), controlPin(MOTOR_LEFT_PIN, 1)).Times(1).InSequence(seq);
+  EXPECT_CALL(Stub::getInstance(), controlPin(MOTOR_RIGHT_PIN, 1)).Times(1).InSequence(seq);
+  currDir = Forward;
   controlMotor();
   ///
-  EXPECT_CALL(Stub::getInstance(), controlPin(MOTOR_LEFT_PIN, 1));
-  EXPECT_CALL(Stub::getInstance(), controlPin(MOTOR_RIGHT_PIN, 1));
-  currDir = Forward;
+  ACCESS_LOCAL_STATIC_VARIABLE(controlMotor, pinLeft, uint8_t) = 0;
+  EXPECT_CALL(Stub::getInstance(), controlPin(MOTOR_LEFT_PIN, 9)).Times(2).InSequence(seq);
+  EXPECT_CALL(Stub::getInstance(), controlPin(MOTOR_RIGHT_PIN, 1)).Times(1).InSequence(seq);
+  currDir = TurnRight;
   controlMotor();
   // MANUAL SECTION END
 }
-/// define a test case for the move function
+/// define a test case for the setDir() function
+TEST(sample, setDir) {
+  // MANUAL SECTION: c75fc7fa-078f-5ceb-b381-ff2288a65a57
+  // MANUAL SECTION END
+}
+/// define a test case for the move() function
 TEST(sample, move) {
   // MANUAL SECTION: afd5313d-1dfd-5f93-8fba-47d757174a4d
   ::testing::Sequence seq;
@@ -106,14 +106,14 @@ TEST(sample, move) {
   EXPECT_EQ(pinUpdated, 1U);
   // MANUAL SECTION END
 }
-/// define a test case for the checkTimeout function
+/// define a test case for the checkTimeout() function
 TEST(sample, checkTimeout) {
   // MANUAL SECTION: 7968e4aa-0cb9-5a90-8491-21484676bf99
   ::testing::Sequence seq;
   lastTimestamp = 0U;
   timeLeft = 10;
   currDir = Forward;
-  EXPECT_CALL(Stub::getInstance(), getCurrentTime()).Times(1).InSequence(seq).WillOnce(::testing::Return(9));
+  EXPECT_CALL(Stub::getInstance(), getCurrentTime()).Times(1).InSequence(seq).WillOnce(::testing::Return(10));
   EXPECT_CALL(Stub::getInstance(), controlMotor()).Times(1).InSequence(seq).WillRepeatedly([]()
                                                                                            { pinUpdated = 1U; });
   checkTimeout();
