@@ -3,7 +3,9 @@ project(test_sample)
 
 # GoogleTest requires at least C++14
 set(CMAKE_CXX_STANDARD 14)
-cmake_policy(SET CMP0135 NEW)
+# MANUAL SECTION: 550c8817-f68e-57c6-b1b0-a5c6b3fdbba6
+#cmake_policy(SET CMP0135 NEW)
+# MANUAL SECTION END
 
 include(FetchContent)
 FetchContent_Declare(

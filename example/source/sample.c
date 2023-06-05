@@ -26,8 +26,8 @@ void controlMotor(void)
 {
     static uint8_t pinLeft = 0U;
     static uint8_t pinRight = 0U;
-    LOCAL_STATIC_VARIABLE(pinLeft);
-    LOCAL_STATIC_VARIABLE(pinRight);
+    LOCAL_STATIC_VARIABLE(uint8_t, pinLeft);
+    LOCAL_STATIC_VARIABLE(uint8_t, pinRight);
     if (0U == pinUpdated)
     {
         uint8_t left = 0, right = 0;

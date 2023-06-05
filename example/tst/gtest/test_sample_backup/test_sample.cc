@@ -7,12 +7,13 @@
 
 //////////////////////////////////////////////////////////////////////////////
 /// to access a local static variable from unit test script
-/// 1. add LOCAL_STATIC_VARIABLE(variable) after the declaration of the variable in the function
-/// 2. use ACCESS_LOCAL_STATIC_VARIABLE(fn, vn, vt) in unit test script
-std::map<std::pair<std::string, std::string>, void*> _local_static_variables;
-#define LOCAL_STATIC_VARIABLE(var) _local_static_variables[std::make_pair(__func__, #var)] = &var
-#define ACCESS_LOCAL_STATIC_VARIABLE(fn, vn, vt) *static_cast<vt *>([](){ try { return _local_static_variables.at(std::make_pair(#fn,#vn)); } catch (const std::exception& e) { fprintf(stderr,"(%s,%s) not existed\n",#fn,#vn); return (void*)nullptr; } }())
-//////////////////////////////////////////////////////////////////////////////
+/// LOCAL_STATIC_VARIABLE(datatype, variable) after the declaration of the variable in the function
+std::map<std::pair<std::string, std::string>, std::pair<void*, void*>> _local_static_vars;
+#define LOCAL_STATIC_VARIABLE(dtype, var) \
+  do {\
+    _local_static_vars[std::make_pair(__func__, #var)].first = &var;\
+    var = *(dtype*)_local_static_vars[std::make_pair(__func__, #var)].second;\
+  } while (0)
 
 extern "C"
 {
@@ -22,12 +23,6 @@ extern "C"
   // include SUT
   #include "sample.c"
 }
-
-/// usage of EXPECT_CALL() for stub functions
-// EXPECT_CALL(Stub::getInstance(), stub_func1()).WillOnce(::testing::Return(1));
-
-// MANUAL SECTION: 35d1701a-c77d-57d9-bed5-d756ffe01cc0
-// MANUAL SECTION END
 
 /// Stub class for stub functions
 class Stub
@@ -71,35 +66,80 @@ extern "C"
   // MANUAL SECTION END
 }
 
+#define LOCAL_STATIC_VARIABLE_WRITE(fn, vn, val) \
+  do {\
+    _##fn##_##vn = val;\
+  } while (0)
+#define LOCAL_STATIC_VARIABLE_READ(fn, vn, vt) *static_cast<vt *>([](){ try { return _local_static_vars.at(std::make_pair(#fn,#vn)).first; } catch (const std::exception& e) { fprintf(stderr,"(%s,%s) not existed\n",#fn,#vn); return (void*)nullptr; } }())
+//////////////////////////////////////////////////////////////////////////////
+
+/// usage of EXPECT_CALL() for stub functions
+// EXPECT_CALL(Stub::getInstance(), stub_func1()).WillOnce(::testing::Return(1));
+
+// MANUAL SECTION: 35d1701a-c77d-57d9-bed5-d756ffe01cc0
+// MANUAL SECTION END
+
+/// test fixture for test case
+/// local static variables
+static uint8_t _controlMotor_pinLeft;
+static uint8_t _controlMotor_pinRight;
+
+class Sample : public ::testing::Test {
+protected:
+  void SetUp() override {
+    currDir = Idle;
+    timeLeft = 0U;
+    lastTimestamp = 0U;
+    pinUpdated = 0U;
+    _controlMotor_pinLeft = 0U;
+    _local_static_vars[std::make_pair("controlMotor", "pinLeft")].second = &_controlMotor_pinLeft;
+    _controlMotor_pinRight = 0U;
+    _local_static_vars[std::make_pair("controlMotor", "pinRight")].second = &_controlMotor_pinRight;
+    // MANUAL SECTION: e8c22ced-203d-5772-b9ea-8237d6edf0f5
+    // MANUAL SECTION END
+  }
+  void TearDown() override {
+    // MANUAL SECTION: 773f0158-c9c4-54e6-b79f-f7cff84ce881
+    // MANUAL SECTION END
+  }
+};
+
 /// define a test case for the controlMotor() function
-TEST(sample, controlMotor) {
+TEST_F(Sample, controlMotor) {
   // MANUAL SECTION: cf139424-4850-5640-aab9-dc3ae9584c7d
+  // prepare precondition & expected calls
   ::testing::Sequence seq;
-  EXPECT_CALL(Stub::getInstance(), controlPin(MOTOR_LEFT_PIN, 1)).Times(1).InSequence(seq);
-  EXPECT_CALL(Stub::getInstance(), controlPin(MOTOR_RIGHT_PIN, 1)).Times(1).InSequence(seq);
+  EXPECT_CALL(Stub::getInstance(), controlPin(testing::Eq(MOTOR_LEFT_PIN), testing::Eq(1))).Times(1).InSequence(seq);
+  EXPECT_CALL(Stub::getInstance(), controlPin(testing::Eq(MOTOR_RIGHT_PIN), testing::Eq(1))).Times(1).InSequence(seq);
+  EXPECT_CALL(Stub::getInstance(), controlPin(testing::Eq(MOTOR_LEFT_PIN), testing::Eq(0))).Times(1).InSequence(seq);
+  EXPECT_CALL(Stub::getInstance(), controlPin(testing::Eq(MOTOR_RIGHT_PIN), testing::Eq(0))).Times(1).InSequence(seq);
   currDir = Forward;
+  // call SUT
   controlMotor();
-  ///
-  ACCESS_LOCAL_STATIC_VARIABLE(controlMotor, pinLeft, uint8_t) = 0;
-  EXPECT_CALL(Stub::getInstance(), controlPin(MOTOR_LEFT_PIN, 9)).Times(2).InSequence(seq);
-  EXPECT_CALL(Stub::getInstance(), controlPin(MOTOR_RIGHT_PIN, 1)).Times(1).InSequence(seq);
+  EXPECT_EQ(LOCAL_STATIC_VARIABLE_READ(controlMotor, pinLeft, uint8_t), 1U);
+  // prepare precondition & expected calls
+  LOCAL_STATIC_VARIABLE_WRITE(controlMotor, pinLeft, 0);
   currDir = TurnRight;
+  // call SUT
   controlMotor();
+  EXPECT_EQ(LOCAL_STATIC_VARIABLE_READ(controlMotor, pinLeft, uint8_t), 0U);
   // MANUAL SECTION END
 }
 /// define a test case for the setDir() function
-TEST(sample, setDir) {
+TEST_F(Sample, setDir) {
   // MANUAL SECTION: c75fc7fa-078f-5ceb-b381-ff2288a65a57
   // MANUAL SECTION END
 }
 /// define a test case for the move() function
-TEST(sample, move) {
+TEST_F(Sample, move) {
   // MANUAL SECTION: afd5313d-1dfd-5f93-8fba-47d757174a4d
+  // prepare precondition & expected calls
   ::testing::Sequence seq;
   EXPECT_CALL(Stub::getInstance(), getCurrentTime()).Times(1).InSequence(seq).WillOnce(::testing::Return(10));
-  EXPECT_CALL(Stub::getInstance(), controlMotor()).Times(1).InSequence(seq).WillRepeatedly([]()
-                                                                                           { pinUpdated = 1U; });
+  EXPECT_CALL(Stub::getInstance(), controlMotor()).Times(1).InSequence(seq).WillRepeatedly([]() { pinUpdated = 1U; });
+  // call SUT
   move(Forward, 10);
+  // check result
   EXPECT_EQ(currDir, Forward);
   EXPECT_EQ(timeLeft, 10);
   EXPECT_EQ(lastTimestamp, 10);
@@ -107,16 +147,18 @@ TEST(sample, move) {
   // MANUAL SECTION END
 }
 /// define a test case for the checkTimeout() function
-TEST(sample, checkTimeout) {
+TEST_F(Sample, checkTimeout) {
   // MANUAL SECTION: 7968e4aa-0cb9-5a90-8491-21484676bf99
+  // prepare precondition & expected calls
   ::testing::Sequence seq;
   lastTimestamp = 0U;
   timeLeft = 10;
   currDir = Forward;
   EXPECT_CALL(Stub::getInstance(), getCurrentTime()).Times(1).InSequence(seq).WillOnce(::testing::Return(10));
-  EXPECT_CALL(Stub::getInstance(), controlMotor()).Times(1).InSequence(seq).WillRepeatedly([]()
-                                                                                           { pinUpdated = 1U; });
+  EXPECT_CALL(Stub::getInstance(), controlMotor()).Times(1).InSequence(seq).WillRepeatedly([]() { pinUpdated = 1U; });
+  // call SUT
   checkTimeout();
+  // check result
   EXPECT_EQ(currDir, Idle);
   // MANUAL SECTION END
 }
