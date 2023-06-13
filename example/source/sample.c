@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#if !defined(LOCAL_STATIC_VARIABLE)
+# define LOCAL_STATIC_VARIABLE(funcname, datatype, varname, initvalue) static datatype varname = initvalue
+#endif //!defined(LOCAL_STATIC_VARIABLE)
+
 typedef enum
 {
     Idle = 0,
@@ -18,16 +22,13 @@ static uint32_t timeLeft = 0U;
 static uint32_t lastTimestamp = 0U;
 static uint8_t pinUpdated = 0U;
 
-extern uint32_t
-getCurrentTime();
+extern uint32_t getCurrentTime();
 extern void controlPin(uint8_t pin, uint8_t high);
 
 void controlMotor(void)
 {
-    static uint8_t pinLeft = 0U;
-    static uint8_t pinRight = 0U;
-    LOCAL_STATIC_VARIABLE(uint8_t, pinLeft);
-    LOCAL_STATIC_VARIABLE(uint8_t, pinRight);
+    LOCAL_STATIC_VARIABLE(controlMotor, uint8_t, pinLeft, 0U);
+    LOCAL_STATIC_VARIABLE(controlMotor, uint8_t, pinRight, 0U);
     if (0U == pinUpdated)
     {
         uint8_t left = 0, right = 0;
