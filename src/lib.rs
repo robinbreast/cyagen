@@ -535,8 +535,40 @@ fn get_ncls<'a>(code: &'a str, fncs: &Vec<Function>) -> Vec<NestedCall> {
     result
 }
 
+/// capture values using regex
+///
+fn update_json_object(
+    json_object: &mut serde_json::Map<String, serde_json::Value>,
+    input_text: &str,
+    dataset_name: &str,
+    regex_str: &str,
+    group_names: &[&str],
+) -> Result<(), String> {
+    let regex = match Regex::new(regex_str) {
+        Ok(r) => r,
+        Err(e) => return Err(format!("Failed to compile regex {}: {}", regex_str, e)),
+    };
+    let mut result = Vec::new();
+    for capture in regex.captures_iter(input_text) {
+        let mut line_result = serde_json::Map::new();
+        for (i, name) in group_names.iter().enumerate() {
+            if let Some(value) = capture.get(i) {
+                line_result.insert(
+                    name.to_string(),
+                    serde_json::Value::String(value.as_str().to_string()),
+                );
+            }
+        }
+        result.push(serde_json::Value::Object(line_result));
+    }
+    json_object.insert(dataset_name.to_string(), serde_json::Value::Array(result));
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
     use std::fs;
 
@@ -576,10 +608,28 @@ static inline char local_function(int a,
     return (char)a;
 }
 ";
+    #[test]
+    fn test_update_json_object() {
+        let mut json_object = json!({});
+        let regex_str = r"((?P<return>\w+[\w\s\*]*\s+)|FUNC\((?P<return_ex>[^,]+),[^\)]+\)\s*)(?P<name>\w+)[\w]*\s*\((?P<args>[^=!><>;\(\)-]*)\)\s*\{";
+        //let regex_str = r"(?P<return>[[:alpha:]_][\w]*\s+)+(?P<name>[[:alpha:]_][\w]*)\s*\((?P<args>[^=!><>;\(\)-]*)\)\s*\{";
+        let group_names = &["captured", "return", "return_ex", "name", "args"];
+        let code = fs::read_to_string("./example/source/sample.c").unwrap();
+        let clean_code = remove_comments(code.as_str());
+        update_json_object(
+            json_object.as_object_mut().unwrap(),
+            clean_code.as_str(),
+            "fncs",
+            regex_str,
+            group_names,
+        )
+        .unwrap();
+        println!("{}", serde_json::to_string_pretty(&json_object).unwrap());
+    }
 
     #[test]
     fn test_parse() {
-        let code = fs::read_to_string("sample.c").unwrap();
+        let code = fs::read_to_string("./example/source/sample.c").unwrap();
         let parser = Parser::parse(&code);
         println!("{:#?}", parser);
     }
