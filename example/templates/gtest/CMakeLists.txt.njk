@@ -1,0 +1,63 @@
+cmake_minimum_required(VERSION 3.14)
+project(test_{{ sourcename }})
+
+if(WIN32)
+  message(FATAL_ERROR "This project does not support Windows.")
+endif()
+
+# GoogleTest requires at least C++14
+set(CMAKE_CXX_STANDARD 14)
+if(POLICY CMP0135)
+  cmake_policy(SET CMP0135 NEW)
+endif()
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+# Additional cmake configs
+# MANUAL SECTION: {{ sourcename ~ "cmake-config" | generateUUID }}
+# MANUAL SECTION END
+
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+enable_testing()
+# MANUAL SECTION: {{ sourcename ~ "cmake-default" | generateUUID }}
+# MANUAL SECTION END
+include_directories(
+  {{ sourcedirname | safe }}
+# MANUAL SECTION: {{ sourcename ~ "cmake-incdirs" | generateUUID }}
+# MANUAL SECTION END
+)
+add_library(target SHARED target_{{ sourcename }}.cc)
+add_executable(test_{{ sourcename }}
+  test_{{ sourcename }}.cc
+# MANUAL SECTION: {{ sourcename ~ "cmake-sources" | generateUUID }}
+# MANUAL SECTION END
+)
+set_target_properties(test_{{ sourcename }} PROPERTIES LINK_FLAGS
+  "-Wl,-rpath='$ORIGIN'")
+target_link_libraries(test_{{ sourcename }}
+  target
+  GTest::gtest_main
+  GTest::gmock_main
+# MANUAL SECTION: {{ sourcename ~ "cmake-linklibs" | generateUUID }}
+# MANUAL SECTION END
+)
+include(GoogleTest)
+gtest_discover_tests(test_{{ sourcename }})
+
+# Add a custom target to run the tests and generate code coverage data
+add_custom_target(test_coverage
+    COMMAND ${CMAKE_CTEST_COMMAND} --verbose
+    COMMAND lcov --capture --directory . --output-file coverage.info
+    COMMAND lcov --remove coverage.info '/usr/*' '*/test_*' '*/googletest/*' '*/googlemock/*' --output-file cleaned_coverage.info
+    COMMAND lcov --list cleaned_coverage.info
+    COMMAND genhtml cleaned_coverage.info --output-directory coverage_report
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    COMMENT "Running tests with coverage and generating coverage report"
+)

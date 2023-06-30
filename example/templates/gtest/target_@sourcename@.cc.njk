@@ -1,0 +1,53 @@
+
+//////////////////////////////////////////////////////////////////////////////
+/// to access a local static variable from unit test script
+/// to use {{ lsv_macro_name }}(funcname, datatype, varname, initvalue) in target source
+#define {{ lsv_macro_name }}(funcname, datatype, varname, initvalue) \
+    datatype& varname = _##funcname##_##varname
+
+extern "C"
+{
+/// includes for local variables datatype reference
+{%- for inc in incs %}
+{%- if inc.captured is containing("_MemMap.h") %}
+{%- else %}
+{{ inc.captured | safe }}
+{%- endif %}
+{%- endfor %}
+/// local static variables
+{%- for var in static_vars %}
+{%- if var.is_local %}
+{{ var.dtype }} _{{ var.func_name }}_{{ var.name }};
+{%- endif %}
+{%- endfor %}
+
+/// invalidate all the static visibility before including target source
+#if defined(LOCAL_INLINE)
+# undef LOCAL_INLINE
+# define LOCAL_INLINE __attribute__((visibility("default")))
+#endif //defined(LOCAL_INLINE)
+
+#if defined(LOCAL)
+# undef LOCAL
+# define LOCAL __attribute__((visibility("default")))
+#endif //defined(LOCAL)
+
+#if defined(STATIC)
+# undef STATIC
+# define STATIC __attribut__((visibility("default")))
+#endif //defined(STATIC)
+
+#define inline
+#if defined(INLINE)
+# undef INLINE
+# define INLINE
+#endif //defined(INLINE)
+#define static
+
+/// include SUT
+#include "{{ sourcename }}.c"
+
+/// dummy variable for dynamic linking between libtarget.so and test_{{ sourcename }} executable
+int _{{ sourcename }}_dummyVar = 0;
+
+}

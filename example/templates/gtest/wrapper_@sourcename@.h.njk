@@ -1,0 +1,123 @@
+#ifndef WRAPPER_{{ sourcename | upper }}_H
+#define WRAPPER_{{ sourcename | upper }}_H
+
+#include "target_{{ sourcename }}.h"
+#include <gtest/gtest.h>
+#include <gmock/gmock.h>
+#include <stdio.h>
+#include <dlfcn.h>
+
+/// broker for mock instance
+class Mock;
+class MockBroker
+{
+public:
+  MockBroker(MockBroker const &) = delete;
+  MockBroker(MockBroker &&) = delete;
+  MockBroker &operator=(MockBroker const &) = delete;
+  MockBroker &operator=(MockBroker &&) = delete;
+  static auto &getInstance()
+  {
+    static MockBroker mb;
+    /// dummy variable for dynamic linking between libtarget.so and test_{{ sourcename }} executable
+    _{{ sourcename }}_dummyVar = 1;
+    return mb;
+  }
+  void set(Mock *mock)
+  {
+    m_mock = mock;
+  }
+  Mock* get(void)
+  {
+    EXPECT_NE(m_mock, nullptr);
+    return m_mock;
+  }
+
+private:
+  Mock *m_mock{nullptr};
+  MockBroker() {}
+};
+/// mock class for stubbing
+class Mock
+{
+public:
+  Mock() { MockBroker::getInstance().set(this); }
+  ~Mock() { MockBroker::getInstance().set(nullptr); }
+
+  /// stub functions
+  // MANUAL SECTION: {{ sourcename ~ "stub" | generateUUID }}
+  // MOCK_METHOD(int, stubExample, (int));
+  // MANUAL SECTION END
+
+  /// nested functions for call sequence checks
+  {%- for fnc in callees %}
+  MOCK_METHOD({{ fnc.rtype }}, {{ fnc.name }}, ({{ fnc.atypes }}));
+  {%- endfor %}
+};
+
+#define CALL_MOCK_FUNCTION(funcname, ...) MockBroker::getInstance().get()->funcname(__VA_ARGS__)
+#define CALL_REAL_FUNCTION(funcname, ...) real_##funcname(__VA_ARGS__)
+#define LOG_WRAP(fmt, ...) \
+  fprintf(stderr, "\n\x1b\[90m%s:%d:\x1b[m\n\x1b[34m[WRAP:%s]\x1b[m, " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define LOG_STUB(fmt, ...) \
+  fprintf(stderr, "\n\x1b\[90m%s:%d:\x1b[m\n\x1b[35m[STUB:%s]\x1b[m, " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define LOG_TEST(fmt, ...) \
+  fprintf(stderr, "\n\x1b\[90m%s:%d:\x1b[m\n\x1b[36m[TEST:%s]\x1b[m, " fmt, __FILE__, __LINE__,\
+        ::testing::UnitTest::GetInstance()->current_test_info()->name(), ##__VA_ARGS__)
+
+extern "C"
+{
+/// stub functions
+// MANUAL SECTION: {{ sourcename ~ "stub-functions" | generateUUID }}
+/* example code
+int stubExample(int arg)
+{
+  LOG_STUB();
+  return CALL_MOCK_FUNCTION(stubExample, arg);
+}
+*/
+// MANUAL SECTION END
+
+/// wrapper functions for nested calls
+{%- for fnc in callees %}
+{{ fnc.rtype }} {{ fnc.name }}({{ fnc.args }})
+{{ '{' }}
+  LOG_WRAP("before");
+  // MANUAL SECTION: {{ fnc.name ~ "wrapper-before" | generateUUID }}
+  // MANUAL SECTION END
+  {% if fnc.rtype != 'void' %}const {{ fnc.rtype }} result = {% endif %}CALL_MOCK_FUNCTION({{ fnc.name }}{% if fnc.anames is defined and fnc.anames != '' %}, {{ fnc.anames }}{% else %}{% endif %});
+  LOG_WRAP("after");
+  // MANUAL SECTION: {{ fnc.name ~ "wrapper-after" | generateUUID }}
+  // MANUAL SECTION END
+  return{% if fnc.rtype != 'void' %} result{% endif %};
+{{ '}' }}
+{%- endfor %}
+
+/// real function pointers
+{%- for fnc in fncs %}
+{{ fnc.rtype }} (*real_{{ fnc.name }})({{ fnc.atypes }}) = nullptr;
+{%- endfor %}
+
+/// load real function pointers when loading target binary
+__attribute__((constructor))
+void load_real_function(void)
+{{ '{' }}
+  {%- for fnc in fncs %}
+  real_{{ fnc.name }} = reinterpret_cast<{{ fnc.rtype }} (*)({{ fnc.atypes }})>(dlsym(RTLD_NEXT, "{{ fnc.name }}"));
+  {%- endfor %}
+{{ '}' }}
+}
+
+/// init values
+{%- for var in static_vars %}
+  {%- if var.is_local %}
+const {{ var.dtype }} _init__{{ var.func_name }}_{{ var.name_expr }} = {{ var.init }};
+  {%- else %}
+const {{ var.dtype }} _init_{{ var.name_expr }} = {{ var.init }};
+  {%- endif %}
+{%- endfor %}
+
+#define VARIABLE_INITIALIZE(varname) \
+  memcpy(&(varname), &_init_##varname, sizeof(varname))
+
+#endif //!defined(WRAPPER_{{ sourcename | upper }}_H)

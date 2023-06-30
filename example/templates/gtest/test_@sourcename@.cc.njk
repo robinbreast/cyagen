@@ -1,0 +1,50 @@
+/// this is generated googletest script based on {{ sourcename }}.c
+
+#include "wrapper_{{ sourcename }}.h"
+
+// MANUAL SECTION: {{ sourcename ~ "global" | generateUUID }}
+// MANUAL SECTION END
+
+/// test fixture for test case
+class {{ sourcename | capitalize }} : public ::testing::Test
+{
+protected:
+  void SetUp() override
+  {
+{%- for var in static_vars %}
+  {%- if var.is_local %}
+    VARIABLE_INITIALIZE(_{{ var.func_name }}_{{ var.name }});
+  {%- else %}
+    VARIABLE_INITIALIZE({{ var.name }});
+  {%- endif %}
+{%- endfor %}
+    // MANUAL SECTION: {{ sourcename ~ "setup" | generateUUID }}
+    // MANUAL SECTION END
+  }
+  void TearDown() override
+  {
+    // MANUAL SECTION: {{ sourcename ~ "teardown" | generateUUID }}
+    // MANUAL SECTION END
+  }
+};
+
+{% for fnc in fncs -%}
+/// define a test case for the {{ fnc.name }}() function
+TEST_F({{ sourcename | capitalize }}, {{ fnc.name }})
+{
+  Mock mock;
+  ::testing::Sequence seq;
+  // MANUAL SECTION: {{ fnc.name | generateUUID }}
+  // MANUAL SECTION END
+}
+{% endfor %}
+
+/// add yet another tests
+// MANUAL SECTION: {{ sourcename ~ "yet-another-tests" | generateUUID }}
+// MANUAL SECTION END
+
+int main(int argc, char **argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}

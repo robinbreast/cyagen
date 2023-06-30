@@ -43,3 +43,6 @@ sample.json
 
 # generated for testing
 .output
+
+# temporary backup
+.backup

@@ -1,0 +1,18 @@
+{
+  "folders": [
+    {
+      "name": "test_{{ sourcename }}",
+      "description": "test folder",
+      "path": "./"
+    }
+  ],
+  "extensions": {
+    "recommendations": [
+      "alexdima.vscode-lcov"
+    ],
+  },
+  "settings": {
+    "vscode-cyagen.currentTargetSource": "{{ sourcedirname | safe }}/{{ sourcename }}.c",
+    "lcov.path": "build/cleaned_coverage.info"
+  },
+}

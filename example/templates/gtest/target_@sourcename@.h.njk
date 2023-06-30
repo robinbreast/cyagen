@@ -1,0 +1,41 @@
+#ifndef TARGET_{{ sourcename | upper }}_H
+#define TARGET_{{ sourcename | upper }}_H
+
+extern "C"
+{
+// includes for SUT
+{%- for inc in incs %}
+{%- if inc.captured is containing("_MemMap.h") %}
+{%- else %}
+{{ inc.captured | safe }}
+{%- endif %}
+{%- endfor %}
+
+/// dummy variable for dynamic linking between libtarget.so and test_{{ sourcename }} executable
+extern int _{{ sourcename }}_dummyVar;
+
+// MANUAL SECTION: {{ sourcename ~ "extern" | generateUUID }}
+// MANUAL SECTION END
+}
+
+/// local date types
+{%- for td in typedefs %}
+{{ td.captured }}
+{%- endfor %}
+
+/// any extra missing information from target source
+// MANUAL SECTION: {{ sourcename ~ "extra" | generateUUID }}
+// MANUAL SECTION END
+
+#define ACCESS_{{ lsv_macro_name }}(funcname, varname) _##funcname##_##varname
+
+/// local static variables
+{%- for var in static_vars %}
+{%- if var.is_local %}
+extern {{ var.dtype }} ACCESS_{{ lsv_macro_name }}({{ var.func_name }}, {{ var.name_expr }});
+{%- else %}
+extern {{ var.dtype }} {{ var.name_expr }};
+{%- endif %}
+{%- endfor %}
+
+#endif //!defined(TARGET_{{ sourcename | upper }}_H)

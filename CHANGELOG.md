@@ -1,5 +1,15 @@
 # Change Log
 
+## [0.1.10]
+### New 
+- supports *.njk extension for template file
+- supports MANUAL SECTION; refer to gtest template files
+### Fixed
+- fix patterns for **fncs** and **static_vars**
+### Updated
+- **gtest** template files are updated with ones from [vscode-cyagen](https://marketplace.visualstudio.com/items?itemName=robinbreast.vscode-cyagen&ssr=false#overview)
+- refactored to separate modules for Parser and generate functions
+
 ## [0.1.9]
 ### New 
 supports jinja2 template files (*.j2 or *.tera) using tera engine

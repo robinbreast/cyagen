@@ -2,9 +2,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use cyagen;
 use std::fs;
-use std::path::{self, Path};
-use tera;
-use serde_json;
+use std::path::{self, Component, Path, PathBuf};
 
 /// text file generator based on C file and templates
 #[derive(Parser)]
@@ -30,7 +28,10 @@ fn main() -> Result<()> {
         .with_context(|| format!("failed to open file `{}`", args.source))?;
     let sourcename = Path::new(&args.source).with_extension("");
     let sourcename = sourcename.file_name().unwrap().to_str().unwrap().clone();
-    let parser = cyagen::Parser::parse(&code);
+    // parse a C file
+    let mut parser: cyagen::Parser = cyagen::Parser::parse(&code);
+    parser.sourcename = sourcename.to_string();
+    // check if json filepath specified as output
     if let Some(json_filepath) = args.json_filepath {
         let dirpath = Path::new(&json_filepath)
             .parent()
@@ -40,113 +41,113 @@ fn main() -> Result<()> {
                 format!("failed to create folder `{}`", dirpath.to_string_lossy())
             })?;
         }
+        let sourcedirname = get_relative_path(&dirpath.to_string_lossy(), &args.source).unwrap();
+        let sourcedirname = Path::new(&sourcedirname)
+            .parent()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        parser.sourcedirname = sourcedirname;
         let mut output_fname = format!("{}", &json_filepath);
         if output_fname.contains("@sourcename@") {
             output_fname = output_fname.replace("@sourcename@", &sourcename);
         }
         cyagen::generate_json(&parser, &output_fname)?;
+    // check if ouput filepath specified as output
     } else if let (Some(output_dir), Some(temp_dir)) = (args.output_dir, args.temp_dir) {
-        if Path::new(&output_dir).exists() {
-            println!(
-                "`{}` is already existed. select other folder as output",
-                output_dir
-            );
-        } else {
-            fs::create_dir_all(&output_dir)
-                .with_context(|| format!("failed to create folder `{}`", output_dir))?;
-            let temp_dir = fs::read_dir(&temp_dir)
-                .with_context(|| format!("failed to read folder `{}`", temp_dir))?;
-            for temp_file in temp_dir {
-                let temp_path = temp_file.unwrap().path().to_string_lossy().into_owned();
-                let temp_filename = temp_path.split(path::MAIN_SEPARATOR).last().unwrap();
-                let temp = fs::read_to_string(&temp_path)
-                    .with_context(|| format!("failed to read file `{}`", &temp_path))?;
-                let temp_ext = Path::new(temp_filename)
-                    .extension()
-                    .unwrap_or_default()
-                    .to_str()
-                    .unwrap_or("");
-                let gen;
-                let mut output_fname =
-                    format!("{}{}{}", &output_dir, path::MAIN_SEPARATOR, temp_filename);
-                if temp_ext == "tera" || temp_ext == "j2" {
-                    output_fname = output_fname.replace(".tera", "").replace(".j2", "");
-                    let mut tera = tera::Tera::default();
-                    tera.add_raw_template("temp", &temp).unwrap();
-                    let mut context = tera::Context::new();
-                    let json_data = serde_json::to_string(&parser).unwrap();
-                    let data: tera::Value = serde_json::from_str(&json_data).unwrap();
-                    for (key, value) in data.as_object().unwrap() {
-                        context.insert(key, value);
-                    }
-                    context.insert("sourcename", &sourcename);
-                    let result = tera.render("temp", &context);
-                    match result {
-                        Ok(value) => gen = value,
-                        Err(error) => panic!("Error: {}", error),
-                    };
-                } else {
-                    gen = cyagen::generate(&parser, &temp, &sourcename);
-                }
-                if output_fname.contains("@sourcename@") {
-                    output_fname = output_fname.replace("@sourcename@", &sourcename);
-                }
-                println!("generating ... {}", &output_fname);
-                fs::write(&output_fname, gen)
-                    .with_context(|| format!("failed to write file `{}`", &output_fname))?;
-            }
-            println!("done!");
-        }
+        let sourcedirname = get_relative_path(&output_dir, &args.source).unwrap();
+        let sourcedirname = Path::new(&sourcedirname)
+            .parent()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        parser.sourcedirname = sourcedirname;
+        let _ = generate_files(&parser, Path::new(&temp_dir), Path::new(&output_dir));
+        println!("done!");
     } else {
         println!("wrong arguments given; you can generate json file or files based on templates at a time");
     }
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    //use super::*;
-
-    #[test]
-    fn test_generate() {
-        let sourcename = "source";
-        let code = "\
-#include <stdio.h>
-static int var = 1;
-static int func1(void)
-{
-    return 0;
-}
-int func2(char c)
-{
-    return func1();
-}
-";
-        let temp = "\
-// include
-@incs@@captured@
-@end-incs@
-// local variables
-@static-vars@@dtype@ @name@;
-@end-static-vars@
-// functions
-@fncs@@rtype@ @name@(@args@);
-@end-fncs@
-";
-        let expected = "\
-// include
-#include <stdio.h>
-
-// local variables
-int var;
-
-// functions
-int func1();
-int func2(char c);
-
-";
-        let parser = cyagen::Parser::parse(code);
-        let gen = cyagen::generate(&parser, temp, sourcename);
-        assert_eq!(gen, expected);
+fn generate_files(parser: &cyagen::Parser, temp_dir: &Path, output_dir: &Path) -> Result<()> {
+    let mut result = Ok(());
+    if !Path::new(&output_dir).exists() {
+        fs::create_dir_all(&output_dir)
+            .with_context(|| format!("failed to create folder `{}`", output_dir.display()))?;
     }
+    let temp_dir = fs::read_dir(&temp_dir)
+        .with_context(|| format!("failed to read folder `{}`", temp_dir.display()))?;
+    for entry in temp_dir {
+        let entry = entry?;
+        let path = entry.path();
+        let is_file = path.is_file();
+        let temp_path = path.into_os_string().into_string().unwrap();
+        let temp_filename = temp_path.split(path::MAIN_SEPARATOR).last().unwrap();
+        if is_file {
+            let temp = fs::read_to_string(&temp_path)
+                .with_context(|| format!("failed to read file `{}`", &temp_path))?;
+            let temp_ext = Path::new(temp_filename)
+                .extension()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or("");
+            let mut gen;
+            let mut output_fname = format!(
+                "{}{}{}",
+                output_dir.display(),
+                path::MAIN_SEPARATOR,
+                temp_filename
+            );
+            if output_fname.contains("@sourcename@") {
+                output_fname = output_fname.replace("@sourcename@", &parser.sourcename);
+            }
+            output_fname = output_fname
+                .replace(".tera", "")
+                .replace(".j2", "")
+                .replace(".njk", "");
+            println!("rendering ... {}", &output_fname);
+            // check if template format is jinja2 such as .tera, .j2, or .njk
+            if temp_ext == "tera" || temp_ext == "j2" || temp_ext == "njk" {
+                gen = cyagen::generate_using_tera(&parser, &temp);
+            // check if cyagen old style of template format
+            } else {
+                gen = cyagen::generate(&parser, &temp, &parser.sourcename);
+            }
+            // check if output file is already existed, then merge with manual sections
+            if PathBuf::from(&output_fname).exists() {
+                let old_gen = fs::read_to_string(&output_fname)
+                    .with_context(|| format!("failed to read file `{}`", &output_fname))?;
+                gen = cyagen::merge_with_manual_sections(&gen, &old_gen);
+            }
+            //
+            fs::write(&output_fname, gen)
+                .with_context(|| format!("failed to write file `{}`", &output_fname))?;
+        } else {
+            let output_path =
+                output_dir.join(&temp_filename.replace("@sourcename@", &parser.sourcename));
+            result = generate_files(&parser, Path::new(&temp_path), &output_path);
+        }
+    }
+    result
+}
+
+fn get_relative_path(from_pathstr: &str, to_pathstr: &str) -> Option<String> {
+    let to_path = Path::new(to_pathstr).to_path_buf();
+    let from_path = Path::new(from_pathstr).to_path_buf();
+
+    let common_prefix = to_path
+        .components()
+        .zip(from_path.components())
+        .take_while(|(a, b)| a == b)
+        .count();
+
+    let up_levels = from_path.components().count() - common_prefix;
+
+    let relative_path = std::iter::repeat(Component::ParentDir)
+        .take(up_levels)
+        .chain(to_path.components().skip(common_prefix))
+        .collect::<PathBuf>();
+
+    relative_path.to_str().map(String::from)
 }
