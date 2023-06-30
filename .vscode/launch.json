@@ -1,0 +1,68 @@
+{
+	// Use IntelliSense to learn about possible attributes.
+	// Hover to view descriptions of existing attributes.
+	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug unit tests in library 'cyagen'",
+			"cargo": {
+				"args": [
+					"test",
+					"--no-run",
+					"--lib",
+					"--package=cyagen"
+				],
+				"filter": {
+					"name": "cyagen",
+					"kind": "lib"
+				}
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug executable 'cyagen'",
+			"cargo": {
+				"args": [
+					"build",
+					"--bin=cyagen",
+					"--package=cyagen"
+				],
+				"filter": {
+					"name": "cyagen",
+					"kind": "bin"
+				}
+			},
+			"args": [
+				"--source", "./example/source/sample.c",
+				"--temp-dir", "./example/templates/gtest",
+				"--output-dir", "./.output"
+			],
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug unit tests in executable 'cyagen'",
+			"cargo": {
+				"args": [
+					"test",
+					"--no-run",
+					"--bin=cyagen",
+					"--package=cyagen"
+				],
+				"filter": {
+					"name": "cyagen",
+					"kind": "bin"
+				}
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		}
+	]
+}

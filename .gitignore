@@ -33,7 +33,10 @@
 
 # cmake
 build
-.vscode
+
+# vscode
+.vscode/*
+!launch.json
 
 # rust
 target
