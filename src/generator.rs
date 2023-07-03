@@ -329,3 +329,167 @@ pub fn generate<'a>(parser: &'a Parser, template: &'a str, sourcename: &'a str) 
         Utc::now().format("%a %b %e %T %Y").to_string().as_str(),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_incs() {
+        let sourcename = "test";
+        let code = "\
+#include <header1.h>
+#include <header2.h>
+";
+        let temp = "\
+// include
+@incs@@captured@
+@end-incs@
+";
+        let expected = "\
+// include
+#include <header1.h>
+#include <header2.h>
+
+";
+        let parser = Parser::parse(code);
+        let generated = generate(&parser, temp, sourcename);
+        assert_eq!(generated, expected);
+    }
+
+    #[test]
+    fn test_generate_static_vars() {
+        let sourcename = "test";
+        let code = "\
+static int a[10];
+int b;
+static char *c;
+void func1(void)
+{
+    static int local_var;
+}
+";
+        let temp = "\
+// static variables
+@static-vars@@dtype@ @name-expr@;
+@end-static-vars@
+// static global variables
+@static-global-vars@@dtype@ @name@;
+@end-static-global-vars@
+// static local variables
+@static-local-vars@@dtype@ @name@;
+@end-static-local-vars@
+";
+        let expected = "\
+// static variables
+int a[10];
+char * c;
+int local_var;
+
+// static global variables
+int a;
+char * c;
+
+// static local variables
+int local_var;
+
+";
+        let parser = Parser::parse(code);
+        let generated = generate(&parser, temp, sourcename);
+        assert_eq!(generated, expected);
+    }
+
+    #[test]
+    fn test_generate_fncs() {
+        let sourcename = "test";
+        let code = "\
+// functions
+int func1()
+{
+    return 0;
+}
+void func2(int const * a)
+{
+}
+";
+        let temp = "\
+// functions
+@fncs@@rtype@ @name@(@args@);
+@atypes@
+@end-fncs@
+";
+        let expected = "\
+// functions
+int func1();
+
+void func2(int const * a);
+const int *
+
+";
+        let parser = Parser::parse(code);
+        let generated = generate(&parser, temp, sourcename);
+        assert_eq!(generated, expected);
+    }
+
+    #[test]
+    fn test_generate_ncls() {
+        let sourcename = "test";
+        let code = "\
+// functions
+void func1()
+{
+    return;
+}
+int func2(int a)
+{
+    return func1();
+}
+";
+        let temp = "\
+@ncls@- @caller.name@ -> @callee.name@
+    - return @callee.rtype.remove(0)@;
+    - (int dummy@callee.args.remove(, )@@callee.args@);
+@end-ncls@
+";
+        let expected = "\
+- func2 -> func1
+    - return ;
+    - (int dummy);
+
+";
+        let parser = Parser::parse(code);
+        let generated = generate(&parser, temp, sourcename);
+        assert_eq!(generated, expected);
+    }
+
+    #[test]
+    fn test_generate_ncls_once() {
+        let sourcename = "test";
+        let code = "\
+// functions
+int func1()
+{
+    return 0;
+}
+void func2(int a)
+{
+    func1();
+}
+void func3(int a)
+{
+    func1();
+}
+";
+        let temp = "\
+@ncls-once@- @callee.name@
+@end-ncls-once@
+";
+        let expected = "\
+- func1
+
+";
+        let parser = Parser::parse(code);
+        let generated = generate(&parser, temp, sourcename);
+        assert_eq!(generated, expected);
+    }
+}

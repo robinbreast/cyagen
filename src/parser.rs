@@ -304,3 +304,104 @@ fn get_callees(ncls: &Vec<NestedCall>) -> Vec<Function> {
     }
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    static TEST_CODE: &'static str = "\
+#include <stdio.h>
+#include <stdio.h>
+#include \"test.h\"
+
+int global_var = 2;
+static char static_var;
+
+// test-comment1
+/* test-comment2 */
+/* 
+    test-comment3
+*/
+
+static inline char local_function(int a);
+
+void main()
+{
+    char c = local_function(20);
+    if (c == 1)
+    {
+        printf(\"no operation\");
+    }
+    else
+    {
+        printf(\"hello world! %c\n\", c);
+    }
+}
+
+static inline char local_function(int a, 
+    int*b )
+{
+    static int local_var[10];
+    return (char)a;
+}
+";
+
+    #[test]
+    fn test_parse() {
+        let code = fs::read_to_string("./example/source/sample.c").unwrap();
+        let parser = Parser::parse(&code);
+        println!("{:#?}", parser);
+    }
+
+    #[test]
+    fn test_remove_comments() {
+        let clean_code = remove_comments(TEST_CODE);
+        assert!(!clean_code.contains("test-comment"));
+    }
+
+    #[test]
+    fn test_get_incs() {
+        let list_incs = get_incs(TEST_CODE);
+        assert_eq!(list_incs[0].captured, "#include <stdio.h>");
+        assert_eq!(list_incs[1].captured, "#include \"test.h\"");
+    }
+
+    #[test]
+    fn test_get_static_vars() {
+        let list_fncs = get_fncs(TEST_CODE);
+        let list_static_vars = get_static_vars(TEST_CODE, &list_fncs);
+        assert_eq!(list_static_vars[0].name, "static_var");
+        assert_eq!(list_static_vars[0].dtype, "char");
+        assert_eq!(list_static_vars[0].is_local, false);
+        assert_eq!(list_static_vars[1].name, "local_var");
+        assert_eq!(list_static_vars[1].name_expr, "local_var[10]");
+        assert_eq!(list_static_vars[1].dtype, "int");
+        assert_eq!(list_static_vars[1].is_local, true);
+        assert_eq!(list_static_vars[1].func_name, "local_function");
+    }
+
+    #[test]
+    fn test_get_fncs() {
+        let list_fncs = get_fncs(TEST_CODE);
+        assert_eq!(list_fncs[0].name, "main");
+        assert_eq!(list_fncs[0].rtype, "void");
+        assert!(!list_fncs[0].is_local);
+        assert_eq!(list_fncs[1].name, "local_function");
+        assert_eq!(list_fncs[1].rtype, "char");
+        assert_eq!(list_fncs[1].atypes, "int, int*");
+        assert!(list_fncs[1].is_local);
+    }
+
+    #[test]
+    fn test_get_ncls() {
+        let list_fncs = get_fncs(TEST_CODE);
+        let list_ncls = get_ncls(TEST_CODE, &list_fncs);
+        if list_ncls.len() > 0 {
+            assert_eq!(list_ncls[0].caller.name, "main");
+            assert_eq!(list_ncls[0].callee.name, "local_function");
+        } else {
+            assert!(false);
+        }
+    }
+}

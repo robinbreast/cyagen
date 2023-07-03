@@ -151,3 +151,52 @@ fn get_relative_path(from_pathstr: &str, to_pathstr: &str) -> Option<String> {
 
     relative_path.to_str().map(String::from)
 }
+
+
+#[cfg(test)]
+mod tests {
+    //use super::*;
+
+    #[test]
+    fn test_generate() {
+        let sourcename = "source";
+        let code = "\
+#include <stdio.h>
+static int var = 1;
+static int func1(void)
+{
+    return 0;
+}
+int func2(char c)
+{
+    return func1();
+}
+";
+        let temp = "\
+// include
+@incs@@captured@
+@end-incs@
+// local variables
+@static-vars@@dtype@ @name@;
+@end-static-vars@
+// functions
+@fncs@@rtype@ @name@(@args@);
+@end-fncs@
+";
+        let expected = "\
+// include
+#include <stdio.h>
+
+// local variables
+int var;
+
+// functions
+int func1();
+int func2(char c);
+
+";
+        let parser = cyagen::Parser::parse(code);
+        let gen = cyagen::generate(&parser, temp, sourcename);
+        assert_eq!(gen, expected);
+    }
+}
