@@ -41,7 +41,7 @@
 			"args": [
 				"--source", "./example/source/sample.c",
 				"--temp-dir", "./example/templates/gtest",
-				"--json-filepath", "./.output/@sourcename@.json",
+				//"--json-filepath", "./.output/@sourcename@.json",
 				"--output-dir", "./.output"
 			],
 			"cwd": "${workspaceFolder}"

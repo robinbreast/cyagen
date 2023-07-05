@@ -49,3 +49,5 @@ sample.json
 
 # temporary backup
 .backup
+
+example/tst/*

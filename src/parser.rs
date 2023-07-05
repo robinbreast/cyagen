@@ -33,6 +33,7 @@ pub struct Function {
     pub rtype: String,
     pub args: String,
     pub atypes: String,
+    pub anames: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -63,14 +64,17 @@ impl Parser {
         let fncs = get_fncs(&code);
         let ncls = get_ncls(&code, &fncs);
         let callees: Vec<Function> = get_callees(&ncls);
+        let mut static_vars = get_static_vars(&code, &fncs);
+        let lsv_macro_name = "LOCAL_STATIC_VARIABLE".to_string();
+        update_static_vars_with_lsv(&code, &fncs, &lsv_macro_name, &mut static_vars);
         Self {
             json_object: serde_json::json!({}),
             sourcename: String::new(),
             sourcedirname: String::new(),
-            lsv_macro_name: "LOCAL_STATIC_VARIABLE".to_string(),
+            lsv_macro_name: lsv_macro_name,
             incs: get_incs(&code),
             typedefs: get_typedefs(&code),
-            static_vars: get_static_vars(&code, &fncs),
+            static_vars: static_vars,
             fncs: fncs.clone(),
             ncls: ncls,
             callees: callees,
@@ -113,6 +117,63 @@ fn get_typedefs(code: &str) -> Vec<Typedefs> {
     result
 }
 
+/// update the list of static variables with LOCAL_STATIC_VARIABLE string pattern
+///
+fn update_static_vars_with_lsv(
+    code: &str,
+    fncs: &Vec<Function>,
+    lsv_macro_name: &str,
+    static_vars: &mut Vec<StaticVariable>,
+) {
+    let regex_str = format!(
+        "{}\\((?<fnc_name>\\w+)\\s*,(?<dtype>.*?)\\s*,\\s*(?<name>\\w+)\\s*(?:\\[(?<array_size>.*?)\\])?\\s*,\\s*(?<value>.*?)\\).*?;",
+        &lsv_macro_name
+    );
+    let re = Regex::new(&regex_str).unwrap();
+    for cap in re.captures_iter(code) {
+        let captured = cap.get(0).unwrap().as_str().trim().to_string();
+        let dtype = cap.name("dtype").unwrap().as_str().trim().to_string();
+        let name = cap.name("name").unwrap().as_str().trim().to_string();
+        let array_size = cap
+            .name("array_size")
+            .map_or(0, |c| c.as_str().parse().unwrap_or(0));
+        let init = cap
+            .name("value")
+            .map_or("0", |c| c.as_str().trim())
+            .to_string();
+        let is_const = cap
+            .name("dtype")
+            .map_or(false, |c| c.as_str().to_lowercase().contains("const"));
+        let name_expr = cap.name("array_size").map_or(name.clone(), |c| {
+            (name.clone() + "[" + c.as_str().trim() + "]").to_string()
+        });
+        let mut is_local = false;
+        let mut func_name = String::from("");
+        for func in fncs {
+            if let Some(pos) = code.find(func.captured.as_str()) {
+                let start = pos + code.get(pos..).unwrap().find('{').unwrap() + 1;
+                let stop = find_end_of_func(code, start);
+                let body = code.get(start..stop).unwrap();
+                if body.contains(captured.as_str()) {
+                    is_local = true;
+                    func_name = func.name.to_string();
+                }
+            }
+        }
+        static_vars.push(StaticVariable {
+            captured: captured,
+            name_expr: name_expr,
+            name: name,
+            dtype: dtype,
+            is_local: is_local,
+            func_name: func_name,
+            init: init,
+            array_size: array_size,
+            is_const: is_const,
+        });
+    }
+}
+
 /// list of static variables from C source code
 ///
 fn get_static_vars(code: &str, fncs: &Vec<Function>) -> Vec<StaticVariable> {
@@ -126,7 +187,7 @@ fn get_static_vars(code: &str, fncs: &Vec<Function>) -> Vec<StaticVariable> {
             .name("array_size")
             .map_or(0, |c| c.as_str().parse().unwrap_or(0));
         let init = cap
-            .name("array_size")
+            .name("value")
             .map_or("0", |c| c.as_str().trim())
             .to_string();
         let is_const = cap
@@ -170,36 +231,49 @@ fn get_fncs(code: &str) -> Vec<Function> {
     let re = Regex::new(
         r"((?<return>\w+[\w\s\*]*\s+)|FUNC\((?<return_ex>[^,]+),[^\)]+\)\s*)(?<name>\w+)[\w]*\s*\((?<args>[^=!><>;\(\)-]*)\)\s*\{"
     ).unwrap();
-    let get_atypes = |args: String| -> String {
+    let get_atypes = |args: String| -> (String, String) {
         let mut type_list = String::new();
+        let mut name_list = String::new();
         let mut first_pos = true;
         let arg_list = args.split(',').collect::<Vec<&str>>();
         for arg in arg_list {
             let arg = arg.trim();
-            if let Some(pos) = arg.rfind(|c: char| (c == '*') || (c == ' ')) {
+            let re4sep = Regex::new(r"^(?<atype>.*?)(?<aname>\w+(?:\[.*?\])*)$").unwrap();
+            let mut atype;
+            let mut aname;
+            if let Some(cap) = re4sep.captures(&arg) {
+                atype = cap.name("atype").unwrap().as_str().trim().to_string();
+                aname = cap.name("aname").unwrap().as_str().trim().to_string();
+                // relocate 'const' only for 'datatype const *' -> 'const datatype *'
+                let re4const = Regex::new(r"\w[\s\r\n]+const[\s\r\n]*\*").unwrap();
+                if let Some(_) = re4const.captures(&atype) {
+                    atype = atype.replace("const", "");
+                    atype = format!("const {}", atype);
+                    let re4space = Regex::new(r"\s+").unwrap();
+                    atype = re4space.replace_all(&atype, " ").to_string();
+                }
                 if first_pos {
                     first_pos = false;
                 } else {
                     type_list.push_str(", ");
+                    name_list.push_str(", ");
                 }
-                let mut tmpstr = arg.get(..(pos + 1)).unwrap().trim().to_string();
-                let re4const = Regex::new(r"\w[\s\r\n]+const[\s\r\n]*\*").unwrap();
-                if let Some(_) = re4const.captures(&tmpstr) {
-                    let re4space = Regex::new(r"\s+").unwrap();
-                    let pos = tmpstr.find("const").unwrap();
-                    tmpstr.replace_range(pos..(pos + 5), "");
-                    tmpstr = format!("const {}", tmpstr);
-                    tmpstr = re4space.replace_all(&tmpstr, " ").to_string();
-                }
-                type_list.push_str(&tmpstr);
-                let array_dimension = arg.get(pos..).unwrap().matches("[").count();
+                type_list.push_str(&atype);
+                let array_dimension = aname.matches("[").count();
                 type_list.push_str(&"*".repeat(array_dimension));
+                // remove '[]' from name string
+                let re4bracket = Regex::new(r"(\[.*?\])+").unwrap();
+                if let Some(_) = re4bracket.captures(&aname) {
+                    aname = re4bracket.replace_all(&aname, "").to_string();
+                }
+                name_list.push_str(&aname);
             }
         }
         if type_list.trim() == "void" {
             type_list.clear();
+            name_list.clear();
         }
-        type_list
+        (type_list, name_list)
     };
     for cap in re.captures_iter(code) {
         if cap.name("name").unwrap().as_str().trim() == "if" {
@@ -214,6 +288,7 @@ fn get_fncs(code: &str) -> Vec<Function> {
         if raw_args.trim() == "void" {
             raw_args.clear();
         }
+        let (atypes, anames) = get_atypes(raw_args.clone());
         let rtype = cap
             .name("return")
             .or(cap.name("return_ex"))
@@ -236,7 +311,8 @@ fn get_fncs(code: &str) -> Vec<Function> {
                 .contains("static"),
             rtype: rtype,
             args: raw_args.clone(),
-            atypes: get_atypes(raw_args.clone()),
+            atypes: atypes,
+            anames: anames,
         });
     }
     result
