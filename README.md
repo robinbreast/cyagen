@@ -20,40 +20,9 @@ $ cmake --build build
 $ cd build && ctest
 ```
 
-## Available tags in a template file
-- **@sourcename@** : it is given as an argument from command line
-- **@date@** : generated date
-- **@incs@** : the list of inclusion statement such as `#include <stdio.h>`
-    - **@captured@** : the captured raw string
-- **@end-incs@** : the end of **incs** block
-- **@static-vars@** or **@static-global-vars@** or **@static-local-vars@**: the list of **static** variables
-    - **@captured@** : the captured raw string
-    - **@name@** : variable name
-    - **@name-expr@** : variable name including brackets when array data
-    - **@dtype@** : variable data type
-    - **@func-name@** : function name only for **static-local-vars**
-- **@end-static-vars@** or **@end-static-global-vars@** or **@end-static-local-vars@**: the end of **static-vars** bolck
-- **@fncs@** or **@fncs0@** : the list of all the functions
-    - **@captured@** : the captured raw string
-    - **@name@** : the function name
-    - **@rtype@** : the return data type of the function
-    - **@args@** : the list of arguments with data types
-    - **@atypes@** : the list of only arguments' data types
-- **@end-fncs@** or **@end-fncs0@** : the end of **fncs** or **fncs0** block
-- **@ncls@** or **@ncls-once@** : the list of nested calls, no duplicate callee with **ncls-once**
-    - **@callee.name@** : the function name of callee
-    - **@callee.rtype@** : the return type of callee
-    - **@callee.rtype.change(\<from\>=\<to\>)@** : to change return data type during generation
-    - **@callee.rtype.remove(\<text\>)@** : \<text\> to be removed when `void`
-    - **@callee.rtype.remove0(\<text\>)@** : \<text\> to be removed when `void`
-    - **@callee.args@** : the argument list string
-    - **@callee.args.remove(\<text\>)@** : \<text\> to be removed when `void`
-    - **@callee.atypes@** : only arguments' data types
-    - **@caller.name@** : the function name of caller
-    - **@caller.rtype@** : the return type of caller
-    - **@caller.args@** : the argument list string
-    - **@caller.atypes@** : only arguments' data types
-- **@end-ncls@** or **@end-ncls-once@** : the end of **ncls** or **ncls-once** block
+## Available identifiers in a template file
+All the available identifiers can be found on [docs.rs](https://docs.rs/crate/cyagen)
+> Notice: all the new identifiers are not supported on the old style of template (not jinja2 format).
  
 ## Example
 
@@ -73,17 +42,22 @@ int func2(char c)
 ";
 let temp = "\
 // include
-@incs@@captured@
-@end-incs@
+{%- for inc in incs %}
+{{ inc.captured | safe }}
+{%- endfor %}
+
 // local variables
-@local-vars@@dtype@ @name@;
-@end-local-vars@
+{%- for var in static_vars %}
+{{ var.dtype }} {{ var.name }};
+{%- endfor %}
+
 // functions
-@fncs@@rtype@ @name@(@args@);
-@end-fncs@
+{%- for fnc in fncs %}
+{{ fnc.rtype }} {{ fnc.name }}({{ fnc.args }});
+{%- endfor %}
 ";
 let parser = cyagen::Parser::parse(code);
-let gen = cyagen::generate(&parser, temp, sourcename);
+let gen = cyagen::generate_using_tera(&parser, temp, sourcename);
 println!("{}", gen);
 ```
 ## Result
@@ -96,7 +70,7 @@ println!("{}", gen);
 int var;
 
 // functions
-int func1(void);
+int func1();
 int func2(char c);
 
 ```
@@ -104,7 +78,7 @@ int func2(char c);
 ## Default application command line usage
 ```
 $ cyagen --help
-cyagen 0.1.8
+cyagen 0.1.10
 Text file generator based on C file and templates
 
 USAGE:
@@ -115,7 +89,7 @@ OPTIONS:
     -t, --temp-dir <TEMP_DIR>           template directory
     -o, --output-dir <OUTPUT_DIR>       output directory
     -j, --json-filepath <JSON_FILEPATH> output json file path
-    -h, --help                          Print help information
-    -V, --version                       Print version information
+    -h, --help                          Print help
+    -V, --version                       Print version
 $
 ```

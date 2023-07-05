@@ -2,57 +2,90 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json;
 
+/// identifiers in the list of "include"
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Include {
+    /// captured string by regex; ex) "#include <stdio.h>"
     pub captured: String,
 }
 
+/// identifiers in the list of "typedef"
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Typedefs {
+    /// captured string by regex; ex) "typedef enum\n{\n    Idle = 0,\n    Forward,\n    TurnLeft,\n    TurnRight,\n    MaxDirection\n} Direction_t;"
     pub captured: String,
 }
 
+/// identifiers in the list of "static_vars"
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StaticVariable {
+    /// captured string by regex; ex) "static int array_var\[10\] = { 1, 2, 3 };"
     pub captured: String,
-    pub name_expr: String, // like "array[10]"
-    pub name: String,      // like "array"
+    /// variable name expression; ex) "array_var\[10\]"
+    pub name_expr: String,
+    /// variable name; ex) "array_var"
+    pub name: String,
+    /// data type; ex) "int"
     pub dtype: String,
-    pub is_local: bool,    // static variable declared within function
-    pub func_name: String, // function name where local variable is declared
+    /// true if the variable is declared within a function
+    pub is_local: bool,
+    /// function where the variable is declared
+    pub func_name: String,
+    /// init value; ex) "{ 1, 2, 3 }"
     pub init: String,
+    /// array size; ex) "10"
     pub array_size: i32,
+    /// true if the variable is const
     pub is_const: bool,
 }
 
+/// identifiers in the list of "fncs"
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Function {
+    /// captured string by regex; ex) "void setDir(const Direction_t dir)\n{"
     pub captured: String,
+    /// name; ex) "setDir"
     pub name: String,
+    /// true if the function is static; ex) false
     pub is_local: bool,
+    /// return data type; ex) "void"
     pub rtype: String,
+    /// arguments; ex) "const Direction_t dir"
     pub args: String,
+    /// argument data types; ex) "const Direction_t"
     pub atypes: String,
+    /// argument names; ex) "dir"
     pub anames: String,
 }
 
+/// identifiers in the list of "ncls"
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NestedCall {
     pub callee: Function,
     pub caller: Function,
 }
 
+/// identifiers which can be used in template
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Parser {
     pub json_object: serde_json::Value,
+    /// source filename without extension to be parsed
     pub sourcename: String,
+    /// source file folder
     pub sourcedirname: String,
+    /// local static variable macro name; LOCAL_STATIC_VARIABLE
     pub lsv_macro_name: String,
+    /// list of "include"
     pub incs: Vec<Include>,
+    /// list of "typedef"
     pub typedefs: Vec<Typedefs>,
+    /// list of static variables
     pub static_vars: Vec<StaticVariable>,
+    /// list of functions
     pub fncs: Vec<Function>,
+    /// list of nested calls
     pub ncls: Vec<NestedCall>,
+    /// list of functions called within the source file
     pub callees: Vec<Function>,
 }
 

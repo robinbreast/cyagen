@@ -152,7 +152,6 @@ fn get_relative_path(from_pathstr: &str, to_pathstr: &str) -> Option<String> {
     relative_path.to_str().map(String::from)
 }
 
-
 #[cfg(test)]
 mod tests {
     //use super::*;
@@ -197,6 +196,52 @@ int func2(char c);
 ";
         let parser = cyagen::Parser::parse(code);
         let gen = cyagen::generate(&parser, temp, sourcename);
+        assert_eq!(gen, expected);
+    }
+
+    #[test]
+    fn test_generate_using_tera() {
+        let code = "\
+#include <stdio.h>
+static int var = 1;
+static int func1(void)
+{
+    return 0;
+}
+int func2(char c)
+{
+    return func1();
+}
+";
+        let temp = "\
+// include
+{%- for inc in incs %}
+{{ inc.captured | safe }}
+{%- endfor %}
+
+// local variables
+{%- for var in static_vars %}
+{{ var.dtype }} {{ var.name }};
+{%- endfor %}
+
+// functions
+{%- for fnc in fncs %}
+{{ fnc.rtype }} {{ fnc.name }}({{ fnc.args }});
+{%- endfor %}
+";
+        let expected = "\
+// include
+#include <stdio.h>
+
+// local variables
+int var;
+
+// functions
+int func1();
+int func2(char c);
+";
+        let parser = cyagen::Parser::parse(code);
+        let gen = cyagen::generate_using_tera(&parser, temp);
         assert_eq!(gen, expected);
     }
 }
