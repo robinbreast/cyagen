@@ -27,7 +27,7 @@ fn main() -> Result<()> {
     let code = fs::read_to_string(&args.source)
         .with_context(|| format!("failed to open file `{}`", args.source))?;
     let sourcename = Path::new(&args.source).with_extension("");
-    let sourcename = sourcename.file_name().unwrap().to_str().unwrap().clone();
+    let sourcename = sourcename.file_name().unwrap().to_str().unwrap();
     // parse a C file
     let mut parser: cyagen::Parser = cyagen::Parser::parse(&code);
     parser.sourcename = sourcename.to_string();
